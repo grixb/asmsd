@@ -35,7 +35,8 @@ target_sources(${PROJECT_NAME}
     PRIVATE 
     src/main.cpp 
     src/httpclientconnector.hpp
-    src/string_trim.hpp)
+    src/string_trim.hpp
+    src/messages.hpp)
 target_link_libraries(${PROJECT_NAME}
     PRIVATE 
     cxxopts::cxxopts 

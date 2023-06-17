@@ -1,0 +1,10 @@
+﻿---
+BasedOnStyle: Google
+IndentWidth: 4
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: 'true'
+AlignConsecutiveDeclarations: 'true'
+AlignTrailingComments: 'true'
+FixNamespaceComments: 'true'
+
+...
