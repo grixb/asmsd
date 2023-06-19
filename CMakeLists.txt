@@ -29,19 +29,28 @@ FetchContent_Declare(spdlog
     URL https://github.com/gabime/spdlog/archive/refs/tags/v1.11.0.tar.gz)
 FetchContent_MakeAvailable(spdlog)
 
+FetchContent_Declare(inotify-cpp
+    URL https://github.com/erikzenker/inotify-cpp/archive/refs/tags/v1.0.0.tar.gz)
+FetchContent_MakeAvailable(inotify-cpp)
+
 
 add_executable(${PROJECT_NAME})
+target_include_directories(${PROJECT_NAME}
+    PRIVATE
+    ${cxxopts_SOURCE_DIR}/include
+    ${json_SOURCE_DIR}/include
+    ${httplib_SOURCE_DIR}
+    ${json-rpc-cxx_SOURCE_DIR}/include
+    ${spdlog_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/src/include
+)
 target_sources(${PROJECT_NAME} 
     PRIVATE 
     src/main.cpp 
-    src/httpclientconnector.hpp
-    src/string_trim.hpp
-    src/messages.hpp)
+    src/messages.cpp
+)
 target_link_libraries(${PROJECT_NAME}
     PRIVATE 
-    cxxopts::cxxopts 
-    nlohmann_json::nlohmann_json 
-    httplib::httplib 
-    json-rpc-cxx 
     fmt::fmt
-    spdlog::spdlog)
+    inotify-cpp::inotify-cpp
+)
