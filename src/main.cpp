@@ -13,8 +13,10 @@
 #include <filesystem>
 #include <sstream>
 #include <fstream>
+#include <ranges>
 
 #include "cxxopts.hpp"
+#include "fmt/chrono.h"
 #include "fmt/core.h"
 #include "httpclientconnector.hpp"
 #include "jsonrpccxx/client.hpp"
@@ -25,16 +27,22 @@
 #include "string_trim.hpp"
 #include "inotify-cpp/NotifierBuilder.h"
 #include "lambda_signal.hpp"
+#include "device.hpp"
+
+namespace fs = std::filesystem;
+
+using namespace std::string_view_literals;
+using namespace std::chrono_literals;
 
 using std::string;
 using std::vector;
-using namespace std::string_view_literals;
-using namespace std::chrono_literals;
+using std::chrono::seconds;
+using std::chrono::minutes;
 using cxxopts::ParseResult;
 using jsonrpccxx::version;
+using jsonrpccxx::JsonRpcClient;
 using inotify::BuildNotifier;
-
-namespace fs = std::filesystem;
+using inotify::NotifierBuilder;
 
 using level_enum = spdlog::level::level_enum;
 using json       = nlohmann::json;
@@ -64,12 +72,15 @@ struct Args {
     int            delete_sms;
     fs::path       watch;
     fs::path       move_to;
+    seconds        time_out;
+    seconds        keep_alive;
+    minutes        reprocess;
 };
 std::unique_ptr<Args> parse(int argc, const char *argv[]);
+Device DefaultDevice(Args& args);
 
-staff::HttpClientConnector DefaultClient(Args &args);
-static constexpr auto      INVALID_MSG =
-    R"(invalid error response: "code" (negative number) and "message" (string) are required)";
+void process_file(
+    Device& client, const fs::path& file, const fs::path& move_to);
 
 int main(int argc, const char *argv[]) {
     spdlog::flush_on(spdlog::level::err);
@@ -94,74 +105,61 @@ int main(int argc, const char *argv[]) {
     }
 
     try {
-        spdlog::debug("try connect to host: {}, with: {}", args->host,
+        spdlog::debug("using host: {}, port: {}", args->host,
                       args->port);
 
-        auto                      http_client = DefaultClient(*args);
-        jsonrpccxx::JsonRpcClient client(http_client, version::v2);
+        auto device = DefaultDevice(*args);
+
+        spdlog::debug("wating for device to be alive...");
+        device.wait_alive();
 
         bool specified{};
 
         if (args->system_info) {
-            const auto sys_inf = std::make_unique<SystemInfo>(
-                client.CallMethod<json>("1", SystemInfo::query_str));
+            const auto& sys_inf = device.system_info();
             if (args->detailed)
-                fmt::print("{:d}\n", *sys_inf);
+                fmt::print("{:d}\n", sys_inf);
             else
-                fmt::print("{}\n", *sys_inf);
+                fmt::print("{}\n", sys_inf);
             specified = true;
         }
 
         if (args->system_status) {
-            const auto sys_status = std::make_unique<SystemStatus>(
-                client.CallMethod<json>("2", SystemStatus::query_str));
+            const auto& sys_status = device.system_status();
             if (args->detailed)
-                fmt::print("{:d}\n", *sys_status);
+                fmt::print("{:d}\n", sys_status);
             else
-                fmt::print("{}\n", *sys_status);
+                fmt::print("{}\n", sys_status);
             specified = true;
         }
 
         if (args->connection_state) {
-            const auto con_state = std::make_unique<ConnectionState>(
-                client.CallMethod<json>("3", ConnectionState::query_str));
+            const auto& con_state = device.connection_state();
             if (args->detailed)
-                fmt::print("{:d}\n", *con_state);
+                fmt::print("{:d}\n", con_state);
             else
-                fmt::print("{}\n", *con_state);
+                fmt::print("{}\n", con_state);
             specified = true;
         }
 
         if (args->sms_storage_state) {
-            const auto sms_state = client.CallMethod<SmsStorageState>(
-                "4", SmsStorageState::query_str);
+            const auto& sms_state = device.sms_storage_state();
             fmt::print("{}\n", sms_state);
             specified = true;
         }
 
         if (args->sms_contact_list) {
-            const auto sms_clist = client.CallMethodNamed<SmsContactList>(
-                "5", SmsContactList::query_str,
-                Page(args->page > 0 ? args->page - 1 : 0));
+            const auto& sms_clist = device.sms_contacts(args->page);
             fmt::print("{}\n", sms_clist);
             specified = true;
         }
 
         if (args->sms_content_list > 0) {
-            if (args->delete_sms > 0) try {
-                    client.CallMethodNamed<json>(
-                        "10", DeleteSms::query_str,
-                        DeleteSms(args->sms_content_list, args->delete_sms));
-                } catch (const jsonrpccxx::JsonRpcException &je) {
-                    if (je.Code() != jsonrpccxx::internal_error &&
-                        je.Message() != INVALID_MSG)
-                        throw je;
-                }
+            if (args->delete_sms > 0)
+                device.delete_sms(args->sms_content_list, args->delete_sms);
             else {
-                const auto sms_clist = client.CallMethodNamed<SmsContentList>(
-                    "6", SmsContentList::query_str,
-                    GetSmsContentList(args->sms_content_list,
-                                      args->page > 0 ? args->page - 1 : 0));
+                const auto& sms_clist = device.sms_contents(
+                        args->sms_content_list, args->page);
                 fmt::print("{}\n", sms_clist);
             }
             specified = true;
@@ -175,21 +173,9 @@ int main(int argc, const char *argv[]) {
                 std::exit(EX_USAGE);
             }
 
-            client.CallMethodNamed<json>(
-                "7", SendSms::query_str,
-                SendSms(std::move(args->send_sms), std::move(args->content)));
-
-            auto res =
-                client.CallMethod<SendSmsResult>("8", SendSmsResult::query_str);
-
-            if (res.send_status == SendSmsResult::SENDING) {
-                while (res.send_status != SendSmsResult::SENDING) {
-                    spdlog::debug("... still seinding, waiting 1 sec ...");
-                    std::this_thread::sleep_for(1s);
-                    res = client.CallMethod<SendSmsResult>(
-                        "9", SendSmsResult::query_str);
-                }
-            }
+            const auto res = device.send_sms(
+                std::move(args->send_sms), 
+                std::move(args->content));
 
             spdlog::debug("SMS send status: {}", res.send_status_sv());
 
@@ -197,14 +183,7 @@ int main(int argc, const char *argv[]) {
         }
 
         if (args->delete_sms > 0 && args->sms_content_list <= 0) {
-            try {
-                client.CallMethodNamed<json>("10", DeleteSms::query_str,
-                                             DeleteSms(args->delete_sms));
-            } catch (const jsonrpccxx::JsonRpcException &je) {
-                if (je.Code() != jsonrpccxx::internal_error &&
-                    je.Message() != INVALID_MSG)
-                    throw je;
-            }
+            device.delete_sms(args->delete_sms);
             specified = true;
         }
 
@@ -215,59 +194,75 @@ int main(int argc, const char *argv[]) {
                 std::exit(EX_USAGE);
             }
 
+            if (args->reprocess > 0min) {
+                const auto since = std::chrono::file_clock::now() - args->reprocess;
+                spdlog::info("reprocessing files since {:%H:%M:%S}",
+                             std::chrono::file_clock::to_sys(since));
+
+                try {
+                    for (const auto& dir_entry : fs::directory_iterator{args->watch}) {
+                        try {
+                            if (dir_entry.is_regular_file() && dir_entry.last_write_time() >= since) {
+                                spdlog::debug("reprocessing file: {}", dir_entry.path().string());
+                                process_file(device, dir_entry.path(), args->move_to);
+                            }
+                        } catch (const std::exception &e) {
+                            spdlog::error("unable to get director entry: {}", e.what());
+                        }
+                    }
+                } catch (const std::exception &e) {
+                    spdlog::error("unable to iterate in directory entries: {}", e.what());
+                }
+            }
+
             spdlog::debug("start watching directory for file creation: {}", watch_string);
             auto notifier = BuildNotifier()
                 .watchPathRecursively(args->watch)
                 .onEvents(
-                    {inotify::Event::create}, 
-                    [&client, &mv_to = args->move_to](inotify::Notification notif){
-                    const auto path_string = notif.path.string();
-                    spdlog::debug("new file created at {}", path_string);
-
-                    std::ifstream in_file{notif.path};
-                    if (!in_file) {
-                        spdlog::error("unable to open file: {}", path_string);
-                        return;
+                    {inotify::Event::create, inotify::Event::moved_to}, 
+                    [&device, &mv_to = args->move_to](inotify::Notification notif){
+                    if (fs::is_regular_file(notif.path)) {
+                        spdlog::debug("new file created at {}", notif.path.string());
+                        process_file(device, notif.path, mv_to);
                     }
-                    std::stringstream buffer{};
-                    buffer << in_file.rdbuf();
-                    auto phone_number = notif.path.stem().string();
-
-                    spdlog::debug("sending SMS to: {}", phone_number);
-                    client.CallMethodNamed<json>(
-                        "11", SendSms::query_str,
-                        SendSms({std::move(phone_number)}, buffer.str()));
-
-                    auto res =
-                        client.CallMethod<SendSmsResult>("12", SendSmsResult::query_str);
-
-                    if (res.send_status == SendSmsResult::SENDING) {
-                        while (res.send_status != SendSmsResult::SENDING) {
-                            spdlog::debug("... still seinding, waiting 1 sec ...");
-                            std::this_thread::sleep_for(1s);
-                            res = client.CallMethod<SendSmsResult>(
-                                "13", SendSmsResult::query_str);
-                        }
-                    }
-
-                    if (!mv_to.empty()) {
-                        spdlog::debug("moving file {} to {}", 
-                            notif.path.filename().string(),
-                            mv_to.string());
-                        fs::rename(notif.path, mv_to/notif.path.filename());
-                    }
-
                 });
             
             spdlog::debug("registring stop signal: press ^C to stop watching...");
-            SignalScope<SIGINT> sigint([&notifier](int sig){
-                spdlog::debug("got signal {}, stopping watch...", sig);
-                notifier.stop();
+            SignalScope<SIGINT> sigint([&device](int sig){
+                spdlog::debug("got signal {}, stopping keepalive...", sig);
+                device.stop_keepalive();
             });
-            spdlog::debug("start running notifier thread...");
-            std::thread thread([&](){ notifier.run(); });
 
-            thread.join();
+            spdlog::debug("start running notifier on watch thread...");
+            std::thread watch_thread([&notifier](){ 
+                notifier.run();
+                spdlog::debug("notifier stoped running...");
+            });
+
+            spdlog::debug("start running keepalive thread...");
+            std::thread keepalive_thread(
+                [&notifier, &device, &path = args->watch](){
+                device.run_keepalive([&](Device& d){
+                    spdlog::error("device went offline... unwatch directory");
+                    notifier.unwatchFile(path);
+                    spdlog::info("waiting for device to be alive...");
+                    d.wait_alive();
+                    spdlog::info("device came back online, start watching again...");
+                    notifier.watchFile(path);
+                    return d.is_running();
+                });
+                spdlog::debug("keepalive stoped running...");
+            });
+            
+            spdlog::debug("wating for keepalive thread to stop...");
+            keepalive_thread.join();
+            spdlog::info("keepalive thread stoped");
+
+            spdlog::debug("stoping notifier...");
+            notifier.stop();
+            spdlog::debug("waiting for watch thread to stop...");
+            watch_thread.join();
+            spdlog::info("watch thread stoped");
 
             specified = true;
         }
@@ -281,7 +276,79 @@ int main(int argc, const char *argv[]) {
         std::exit(EX_SOFTWARE);
     }
 
+    args.reset();
+
     std::exit(EXIT_SUCCESS);
+}
+
+void process_file(
+    Device&  client, 
+    const fs::path& file, 
+    const fs::path& move_to
+    ) {
+    const auto path_string = file.string();
+
+    std::ifstream in_file{file};
+    if (!in_file) {
+        spdlog::error("unable to open file: {}", path_string);
+        return;
+    }
+
+    std::stringstream content{};
+    string            phone_number{};
+    try {
+        string line{};
+        while (!(line.starts_with("To") || line.starts_with("to"))) {
+            line.clear();
+            if (!std::getline(in_file, line)) break;
+        }
+        if (line.empty()) {
+            spdlog::error("no To field specified in file");
+            return;
+        }
+        if (const auto i = line.find_last_of(':'); i > 0) {
+            if (i + 1 < line.size()) {
+                phone_number = line.substr(i+1);
+                trim(phone_number);
+            } else {
+                spdlog::error("no value in to field (empty)");
+                return;
+            }
+        } else {
+            spdlog::error("no separator ':' specified in To field");
+            return;
+        }
+        
+        line.clear();
+        while (std::getline(in_file, line) && !line.empty())
+            line.clear();
+
+        content << in_file.rdbuf();
+    } catch (const std::exception &e) {
+        spdlog::error("unable to read in file {} content: {}",
+            path_string, e.what());
+        return;
+    }
+
+    spdlog::debug("sending SMS to: {}", phone_number);
+
+    try {
+        client.send_sms({std::move(phone_number)}, content.str());
+    } catch (const std::exception &e) {
+        spdlog::error("unable to send sms: {}", e.what());
+        return;
+    }
+
+    if (!move_to.empty()) {
+        spdlog::debug("moving file {} to {}", 
+            file.filename().string(),
+            move_to.string());
+        try {
+            fs::rename(file, move_to/file.filename());
+        } catch (const std::exception &e) {
+            spdlog::error("unable to move file: {}", e.what());
+        }
+    }
 }
 
 std::unique_ptr<Args> parse(int argc, const char *argv[]) {
@@ -294,6 +361,10 @@ std::unique_ptr<Args> parse(int argc, const char *argv[]) {
 
     auto   args = std::make_unique<Args>();
     string log_level{};
+    long   time_out{};
+    long   keep_alive{};
+    long   reprocess{};
+
     opts.set_width(90).add_options()  //
         ("l,log-level", "log level", value(log_level)->default_value("info"))(
             "h,host", "hostname or ip address of the device",
@@ -304,6 +375,10 @@ std::unique_ptr<Args> parse(int argc, const char *argv[]) {
             value(args->base_path)->default_value("/jrd/webapi"))(
             "v,verify-token", "verification token for the rpc requests",
             value(args->verify_token)->default_value(string(DEFAULT_VTOKEN)))(
+            "t,time-out", "connection time out in seconds",
+            value(time_out)->default_value("9"))(
+            "k,keep-alive", "keep alive timer in seconds",
+            value(keep_alive)->default_value("3"))(
             "help", "print usage");
 
     opts.add_options("commands")  //
@@ -330,7 +405,10 @@ std::unique_ptr<Args> parse(int argc, const char *argv[]) {
             "w,watch", "watching directory for file creation",
             value(args->watch)->implicit_value("."))(
             "m,move-to", "move sended file to this directory",
-            value(args->move_to)->implicit_value("."));
+            value(args->move_to)->implicit_value("."))(
+            "r,reprocess", "reprocess files which created arg minutes ago",
+            value(reprocess)->default_value("5")
+            );
 
     auto result = std::make_unique<ParseResult>(opts.parse(argc, argv));
 
@@ -345,14 +423,25 @@ std::unique_ptr<Args> parse(int argc, const char *argv[]) {
     trim(args->verify_token);
     trim(args->content);
 
-    args->log_level = spdlog::level::from_str(log_level);
+    args->log_level  = spdlog::level::from_str(log_level);
+    args->time_out   = seconds{time_out};
+    args->keep_alive = seconds{keep_alive};
+    args->reprocess  = minutes{reprocess};
 
     return args;
 }
 
-staff::HttpClientConnector DefaultClient(Args &args) {
-    staff::HttpClientConnector http_client{args.host, args.port,
-                                           std::move(args.base_path)};
+messages::Device DefaultDevice(Args &args) {
+    if (args.keep_alive >= args.time_out) {
+        fmt::print("keep alive value {} have to be smaller then time out {}",
+            args.keep_alive, args.time_out);
+        std::exit(EX_USAGE);
+    }
+    messages::Device http_client{
+        args.host, args.port, std::move(args.base_path),
+        args.keep_alive, args.time_out, version::v2
+    };
+    
     http_client.set_default_headers({
         {"Content-Type", "application/json"},
         {"_TclRequestVerificationKey", std::move(args.verify_token)},

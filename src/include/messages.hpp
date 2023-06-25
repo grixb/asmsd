@@ -133,6 +133,8 @@ struct SmsStorageState {
     int max_count;
     int use_count;
     int unread_count;
+
+    // SmsStorageState(const json&& j);
 };
 
 void from_json(const json& j, SmsStorageState& ss);

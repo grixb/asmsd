@@ -5,6 +5,14 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(BUILD_EXAMPLE OFF CACHE BOOL "do not build inotify example")
+set(BUILD_TEST OFF CACHE BOOL "do not build inotify test")
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "do not build inotify as shared lib")
+set(BUILD_STATIC_LIBS ON CACHE BOOL "build inotify as static lib only")
+set(HTTPLIB_INSTALL OFF CACHE BOOL "use httplib as header only")
+set(CXXOPTS_BUILD_EXAMPLES OFF CACHE BOOL "do not build CXXOPTS examples")
+set(CXXOPTS_ENABLE_INSTALL OFF CACHE BOOL "use CXXOPTS as header only")
+
 find_package(fmt REQUIRED)
 
 include(FetchContent)
@@ -33,12 +41,15 @@ FetchContent_Declare(inotify-cpp
     URL https://github.com/erikzenker/inotify-cpp/archive/refs/tags/v1.0.0.tar.gz)
 FetchContent_MakeAvailable(inotify-cpp)
 
+execute_process(
+    COMMAND patch ${httplib_SOURCE_DIR}/httplib.h ${PROJECT_SOURCE_DIR}/httplib.h.diff
+)
 
 add_executable(${PROJECT_NAME})
 target_include_directories(${PROJECT_NAME}
     PRIVATE
     ${cxxopts_SOURCE_DIR}/include
-    ${json_SOURCE_DIR}/include
+    #${json_SOURCE_DIR}/include
     ${httplib_SOURCE_DIR}
     ${json-rpc-cxx_SOURCE_DIR}/include
     ${spdlog_SOURCE_DIR}/include
@@ -48,9 +59,14 @@ target_sources(${PROJECT_NAME}
     PRIVATE 
     src/main.cpp 
     src/messages.cpp
+    src/device.cpp
 )
 target_link_libraries(${PROJECT_NAME}
     PRIVATE 
     fmt::fmt
     inotify-cpp::inotify-cpp
+    nlohmann_json::nlohmann_json
+)
+target_compile_options(${PROJECT_NAME}
+PRIVATE -Wall -Wextra -Wpedantic -Werror
 )

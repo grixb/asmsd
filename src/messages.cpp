@@ -113,6 +113,8 @@ void from_json(const json& j, SmsStorageState& ss) {
     j.at("UnreadSMSCount").get_to(ss.unread_count);
 }
 
+// SmsStorageState::SmsStorageState(const json&& j) { j.get_to(*this); }
+
 void from_json(const json& j, ConnectionState& cs) {
     j.at("ConnectionStatus").get_to(cs.connection_status);
     j.at("Conprofileerror").get_to(cs.conprof_error);
