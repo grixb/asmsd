@@ -60,6 +60,7 @@ target_sources(${PROJECT_NAME}
     src/main.cpp 
     src/messages.cpp
     src/device.cpp
+    src/httpclientconnector.cpp
 )
 target_link_libraries(${PROJECT_NAME}
     PRIVATE 

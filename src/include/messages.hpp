@@ -4,15 +4,10 @@
 #include <chrono>
 #include <cstdint>
 #include <ctime>
-#include <map>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include "fmt/chrono.h"
-#include "fmt/core.h"
-#include "nlohmann/json.hpp"
+#include <memory>
 
 namespace messages {
 using namespace std::string_view_literals;
@@ -23,37 +18,37 @@ using std::time_t;
 using std::chrono::seconds;
 using std::vector;
 
-using json = nlohmann::json;
+class SystemInfo {
+    class _Repr; std::unique_ptr<_Repr> _repr;
 
-struct SystemInfo {
+public:
     using mac_addr_t = std::uint8_t[6];
 
-    static constexpr auto query_str = "GetSystemInfo";
+    friend struct aux;
 
-    string     device_name;
-    string     hw_version;
-    time_t     build_time;
-    string     http_api_version;
-    string     iccid;
-    string     imei;
-    int        imeisv;
-    string     imsi;
-    mac_addr_t mac_address;
+    const string_view& device_name() const& noexcept;
+    const string_view& hw_version() const& noexcept;
+    const std::tm&     build_time() const& noexcept;
+    const string_view& http_api_version() const& noexcept;
+    const string_view& iccid() const& noexcept;
+    const string_view& imei() const& noexcept;
+    const int&         imeisv() const& noexcept;
+    const string_view& imsi() const& noexcept;
+    const mac_addr_t&  mac_address() const& noexcept;
 
-    inline const std::tm& build_time_ltm() const {
-        return *std::localtime(&build_time);
-    }
+    SystemInfo();
+    SystemInfo(SystemInfo&&) noexcept;
+    SystemInfo& operator=(SystemInfo&&) noexcept;
 
-    SystemInfo(const json&& j);
+    virtual ~SystemInfo();
 };
-
-void from_json(const json& j, SystemInfo& i);
 
 static constexpr auto UNKNOWN = "UNKNOWN"sv;
 
-struct SystemStatus {
-    static constexpr auto query_str = "GetSystemStatus";
+class SystemStatus {
+    class _Repr; std::unique_ptr<_Repr> _repr;
 
+public:
     static constexpr auto NO_SERVICE_SV    = "NO Service"sv;
     static constexpr auto GPRS_SV          = "GPRS [2G]"sv;
     static constexpr auto EDGE_SV          = "EDGE [2G]"sv;
@@ -73,7 +68,7 @@ struct SystemStatus {
     static constexpr auto NORMAL_SV        = "normal"sv;
     static constexpr auto NEW_SV           = "new"sv;
 
-    enum NetworkType : std::uint8_t {
+    enum class NetworkType : std::uint8_t {
         NO_SERVICE,
         GPRS,
         EDGE,  // 2G
@@ -86,118 +81,115 @@ struct SystemStatus {
         LTE_PLUS,      // 4G+
     };
 
-    enum ConnectionStatus : std::uint8_t {
+    enum class ConnectionStatus : std::uint8_t {
         DISCONNECTED,
         CONNECTING,
         CONNECTED,
         DISCONNECTING
     };
 
-    enum SmsState : std::uint8_t { DISABLED, FULL, NORMAL, NEW };
+    enum class SmsState : std::uint8_t { DISABLED, FULL, NORMAL, NEW };
 
-    string           network_name;
-    int              signal_strength;
-    int              conprof_error;
-    int              clear_code;
-    int              m_pdp_reject_count;
-    NetworkType      network_type;
-    ConnectionStatus connection_status;
-    SmsState         sms_state;
-    bool             roaming;
-    bool             domestic_roaming;
+    friend struct aux;
 
-    static const string_view& as_strv(ConnectionStatus cs) noexcept;
-    static const string_view& as_strv(SmsState smss) noexcept;
-    static const string_view& as_strv(NetworkType nett) noexcept;
+    const string_view&      network_name() const& noexcept;
+    const int&              signal_strength() const& noexcept;
+    const int&              conprof_error() const& noexcept;
+    const int&              clear_code() const& noexcept;
+    const int&              m_pdp_reject_count() const& noexcept;
+    const NetworkType&      network_type() const& noexcept;
+    const ConnectionStatus& connection_status() const& noexcept;
+    const SmsState&         sms_state() const& noexcept;
+    const bool&             roaming() const& noexcept;
+    const bool&             domestic_roaming() const& noexcept;
 
-    inline const string_view& network_type_sv() const noexcept {
-        return as_strv(network_type);
+    static const string_view& as_strv(NetworkType) noexcept;
+    static const string_view& as_strv(ConnectionStatus) noexcept;
+    static const string_view& as_strv(SmsState) noexcept;
+
+    inline const string_view& network_type_sv() const& {
+        return as_strv(network_type());
     }
-    inline const string_view& connection_status_sv() const noexcept {
-        return as_strv(connection_status);
+    inline const string_view& connection_status_sv() const& {
+        return as_strv(connection_status());
     }
-    inline const string_view& sms_state_sv() const noexcept {
-        return as_strv(sms_state);
+    inline const string_view& sms_state_sv() const& {
+        return as_strv(sms_state());
     }
 
-    SystemStatus(const json&& j);
+    SystemStatus();
+    SystemStatus(SystemStatus&&) noexcept;
+    SystemStatus& operator=(SystemStatus&&) noexcept;
+
+    virtual ~SystemStatus();
 };
 
-void from_json(const json& j, SystemStatus& ss);
+class SmsStorageState {
+    class _Repr; std::unique_ptr<_Repr> _repr;
 
-struct SmsStorageState {
-    static constexpr auto query_str = "GetSMSStorageState";
+public:
+    friend struct aux;
 
-    int unread_report;
-    int left_count;
-    int max_count;
-    int use_count;
-    int unread_count;
+    const int& unread_report() const& noexcept;
+    const int& left_count() const& noexcept;
+    const int& max_count() const& noexcept;
+    const int& use_count() const& noexcept;
+    const int& unread_count() const& noexcept;
 
-    // SmsStorageState(const json&& j);
+    SmsStorageState();
+    SmsStorageState(SmsStorageState&&) noexcept;
+    SmsStorageState& operator=(SmsStorageState&&) noexcept;
+
+    virtual ~SmsStorageState();    
 };
-
-void from_json(const json& j, SmsStorageState& ss);
 
 using ConnectionStatus = SystemStatus::ConnectionStatus;
 
-struct ConnectionState {
-    static constexpr auto query_str = "GetConnectionState";
+class ConnectionState {
+    class _Repr; std::unique_ptr<_Repr> _repr;
 
-    ConnectionStatus connection_status;
-    int              conprof_error;
-    int              clear_code;
-    int              m_pdp_reject_count;
-    string           ipv4_address;
-    string           ipv6_address;
-    size_t           dl_speed;
-    size_t           ul_speed;
-    size_t           dl_rate;
-    size_t           ul_rate;
-    size_t           dl_bytes;
-    size_t           ul_bytes;
-    seconds          connection_time;
+public:
+    friend struct aux;
+
+    const ConnectionStatus& connection_status() const& noexcept;
+    const int&              conprof_error() const& noexcept;
+    const int&              clear_code() const& noexcept;
+    const int&              m_pdp_reject_count() const& noexcept;
+    const string_view&      ipv4_address() const& noexcept;
+    const string_view&      ipv6_address() const& noexcept;
+    const size_t&           dl_speed() const& noexcept;
+    const size_t&           ul_speed() const& noexcept;
+    const size_t&           dl_rate() const& noexcept;
+    const size_t&           ul_rate() const& noexcept;
+    const size_t&           dl_bytes() const& noexcept;
+    const size_t&           ul_bytes() const& noexcept;
+    const seconds&          connection_time() const& noexcept;
 
     inline const string_view& connection_status_sv() const noexcept {
-        return SystemStatus::as_strv(connection_status);
+        return SystemStatus::as_strv(connection_status());
     }
 
-    ConnectionState(const json&& j);
-};
+    ConnectionState();
+    ConnectionState(ConnectionState&&) noexcept;
+    ConnectionState& operator=(ConnectionState&&) noexcept;
 
-void from_json(const json& j, ConnectionState& cs);
+    virtual ~ConnectionState();
+};
 
 struct Page {
-    using named_parameter = std::map<std::string, json>;
-
     size_t page;
-
     Page(size_t p) : page{p} {}
     Page() = default;
-
-    operator named_parameter() const { return {{"Page", page}}; }
 };
-
-void from_json(const json& j, Page& p);
 
 template <typename CRTP>
 struct Pagination : Page {
     using crtp_t = CRTP;
     int total_pages;
 };
-
-template <typename CRTP>
-void from_json(const json& j, Pagination<CRTP>& p) {
-    j.get_to(static_cast<Page&>(p));
-    j.at("TotalPageCount").get_to(p.total_pages);
-}
-
 struct GetSmsContentList : Page {
     int contact_id;
     GetSmsContentList(int id, size_t p) : Page{p}, contact_id{id} {}
-    operator named_parameter() const {
-        return {{"Page", page}, {"ContactId", contact_id}};
-    }
 };
 
 struct SmsContent {
@@ -242,17 +234,11 @@ struct SmsContent {
     }
 };
 
-void from_json(const json& j, SmsContent& smsc);
-
 struct SmsContentList : Pagination<SmsContentList> {
-    static constexpr auto query_str = "GetSMSContentList";
-
     vector<SmsContent> contents;
     int                contact_id;
     vector<string>     phone_numbers;
 };
-
-void from_json(const json& j, SmsContentList& smsc);
 
 struct SmsContact : SmsContent {
     int            contact_id;
@@ -261,46 +247,22 @@ struct SmsContact : SmsContent {
     int            sms_count;
 };
 
-void from_json(const json& j, SmsContact& smsc);
-
 struct SmsContactList : Pagination<SmsContactList> {
-    static constexpr auto query_str = "GetSMSContactList";
-
     vector<SmsContact> contacts;
 };
 
-void from_json(const json& j, SmsContactList& smsc);
-
 struct SendSms {
-    using named_parameter = std::map<std::string, json>;
     using clock           = std::chrono::system_clock;
-
-    static constexpr auto query_str = "SendSMS";
 
     int            sms_id;
     string         sms_content;
     vector<string> phone_numbers;
     time_t         sms_time;
 
-    SendSms(vector<string> nums, string content)
-        : sms_id{-1},
-          sms_content{std::move(content)},
-          phone_numbers{std::move(nums)} {
-        sms_time = clock::to_time_t(clock::now());
-    }
-
-    operator named_parameter() const {
-        return {{"SMSId", sms_id},
-                {"SMSContent", sms_content},
-                {"PhoneNumber", phone_numbers},
-                {"SMSTime", fmt::format("{:%Y-%m-%d %H:%M:%S}",
-                                        *std::localtime(&sms_time))}};
-    }
+    SendSms(vector<string> nums, string content);
 };
 
 struct SendSmsResult {
-    static constexpr auto query_str = "GetSendSMSResult";
-
     static constexpr auto NONE_SV         = "none"sv;
     static constexpr auto SENDING_SV      = "sending..."sv;
     static constexpr auto SUCCESS_SV      = "success"sv;
@@ -317,7 +279,7 @@ struct SendSmsResult {
         FAILED
     };
 
-    static const string_view& as_strv(SendStatus sstat) noexcept;
+    static const string_view& as_strv(SendStatus) noexcept;
 
     SendStatus send_status;
 
@@ -325,11 +287,9 @@ struct SendSmsResult {
         return as_strv(send_status);
     }
 };
-void from_json(const json& j, SendSmsResult& res);
+
 
 struct DeleteSms {
-    using named_parameter = std::map<std::string, json>;
-
     static constexpr auto query_str = "DeleteSMS";
 
     enum Flag { ALL, CONTACT, CONTENT };
@@ -343,20 +303,6 @@ struct DeleteSms {
 
     DeleteSms(int contact_id, int sms_id)
         : del_flag{CONTENT}, contact_id{contact_id}, sms_id{sms_id} {}
-
-    operator named_parameter() const {
-        switch (del_flag) {
-            case CONTENT:
-                return {{"DelFlag", del_flag},
-                        {"ContactId", contact_id},
-                        {"SMSId", sms_id}};
-            default:
-                return {
-                    {"DelFlag", del_flag},
-                    {"ContactId", contact_id},
-                };
-        }
-    }
 };
 }  // namespace messages
 

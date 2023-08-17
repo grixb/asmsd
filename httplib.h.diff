@@ -1,4 +1,11 @@
-6341c6341
-< #ifdef CPPHTTPLIB_ALLOW_LF_AS_LINE_TERMINATOR
----
-> #ifndef CPPHTTPLIB_ALLOW_LF_AS_LINE_TERMINATOR
+--- httplib.h	2023-06-10 00:02:38.000000000 +0200
++++ build/_deps/httplib-src/httplib.h	2023-06-26 13:48:00.608640099 +0200
+@@ -6338,7 +6338,7 @@
+ 
+   if (!line_reader.getline()) { return false; }
+ 
+-#ifdef CPPHTTPLIB_ALLOW_LF_AS_LINE_TERMINATOR
++#ifndef CPPHTTPLIB_ALLOW_LF_AS_LINE_TERMINATOR
+   const static std::regex re("(HTTP/1\\.[01]) (\\d{3})(?: (.*?))?\r\n");
+ #else
+   const static std::regex re("(HTTP/1\\.[01]) (\\d{3})(?: (.*?))?\r?\n");

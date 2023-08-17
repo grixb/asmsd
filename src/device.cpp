@@ -1,4 +1,5 @@
 #include "device.hpp"
+#include "messages_aux.hpp"
 
 namespace messages {
 
@@ -8,30 +9,38 @@ Device::Device(
 ) : _connector(std::make_unique<HttpClientConnector>(
         std::move(hostname), port, std::move(base_path)
     )),
-    _client{*_connector, ver},
+    _version{ver},
     _keepalive{keepalive} {
     _connector->timeout(timeout);
     _last_alive = steady_clock::now() - timeout;
 }
 
-Device::Device(Device&& other) noexcept :
-    _connector(std::move(other._connector)),
-    _client(std::move(other._client)),
-    _keepalive{other._keepalive},
-    _last_alive{other._last_alive},
-    _sys_inf(std::move(other._sys_inf)),
-    _sys_status(std::move(other._sys_status)),
-    _con_state(std::move(other._con_state)),
-    _sms_state(std::move(other._sms_state)),
-    _contacts(std::move(other._contacts)),
-    _contents(std::move(other._contents)) {}
+Device::Device(Device&& other) noexcept {
+    std::unique_lock l1{_mutex, std::defer_lock};
+    std::unique_lock l2{
+        other._mutex, std::defer_lock
+    };
+    std::lock(l1, l2);
+    _connector  = std::move(other._connector);
+    _sys_inf    = std::move(other._sys_inf);
+    _sys_status = std::move(other._sys_status);
+    _con_state  = std::move(other._con_state);
+    _sms_state  = std::move(other._sms_state);
+    _contacts   = std::move(other._contacts);
+    _contents   = std::move(other._contents);
+    _is_running = other._is_running;
+    _version    = other._version;
+    _keepalive  = other._keepalive;
+    other._is_running = false;
+}
 
 
 bool Device::ensure_alive() {
     std::lock_guard<std::mutex> lock(_mutex);
     try {
+        auto client = JsonRpcClient{*_connector, _version};
         const auto res = 
-            _client.CallMethod<json>("0", "HeartBeat");
+            client.CallMethod<aux::json>("0", "HeartBeat");
     } catch (const std::runtime_error& e) {
         const auto what = string_view{e.what()};
         if (what.starts_with("connection error: "))
@@ -111,49 +120,56 @@ void Device::set_default_headers(staff::Headers hdrs) {
 const SystemInfo& Device::system_info() {
     if (is_alive()) {
         std::lock_guard<std::mutex> lock(_mutex);
-        _sys_inf = std::make_unique<SystemInfo>(
-            _client.CallMethod<json>("1", SystemInfo::query_str));
+        auto client = JsonRpcClient{*_connector, _version};
+        aux::emplace_json(_sys_inf,
+        client.CallMethod<aux::json>("1", aux::query_str<SystemInfo>()));
         //still_alive();
     }
-    return *_sys_inf;
+    return _sys_inf;
 }
 
 const SystemStatus& Device::system_status() {
     if (is_alive()) {
         std::lock_guard<std::mutex> lock(_mutex);
-        _sys_status = std::make_unique<SystemStatus>(
-                _client.CallMethod<json>("2", SystemStatus::query_str));
+        auto client = JsonRpcClient{*_connector, _version};
+        aux::emplace_json(_sys_status,
+        client.CallMethod<aux::json>("2", aux::query_str<SystemStatus>()));
         //still_alive();
     }
-    return *_sys_status;
+    return _sys_status;
 }
 
 const ConnectionState& Device::connection_state() {
     if (is_alive()) {
         std::lock_guard<std::mutex> lock(_mutex);
-        _con_state = std::make_unique<ConnectionState>(
-                _client.CallMethod<json>("3", ConnectionState::query_str));
+        auto client = JsonRpcClient{*_connector, _version};
+        aux::emplace_json(_con_state, client.CallMethod<aux::json>(
+                "3", aux::query_str<ConnectionState>()
+        ));
         //still_alive();
     }
-    return *_con_state;
+    return _con_state;
 }
 
 const SmsStorageState& Device::sms_storage_state() {
     if (is_alive()) {
         std::lock_guard<std::mutex> lock(_mutex);
-        _sms_state = std::make_unique<SmsStorageState>(
-                _client.CallMethod<json>("4", SmsStorageState::query_str));
+        auto client = JsonRpcClient{*_connector, _version};
+        const auto repl =
+            client.CallMethod<aux::json>("4", aux::query_str<SmsStorageState>());
+        aux::from_json(repl, _sms_state);
         //still_alive();
     }
-    return *_sms_state;
+    return _sms_state;
 }
 
 const SmsContactList& Device::sms_contacts(size_t page) {
     if (is_alive()) {
         std::lock_guard<std::mutex> lock(_mutex);
-        _contacts = _client.CallMethodNamed<SmsContactList>(
-                "5", SmsContactList::query_str,
-                Page(page > 0 ? page - 1 : 0));
+        auto client = JsonRpcClient{*_connector, _version};
+        _contacts = client.CallMethodNamed<SmsContactList>(
+                "5", aux::query_str<SmsContactList>(),
+                aux::as_param(Page(page > 0 ? page - 1 : 0)));
         _last_alive = steady_clock::now();
         //still_alive();
     }
@@ -163,9 +179,12 @@ const SmsContactList& Device::sms_contacts(size_t page) {
 const SmsContentList& Device::sms_contents(int contact, size_t page) {
     if (is_alive()) {
         std::lock_guard<std::mutex> lock(_mutex);
-        _contents = _client.CallMethodNamed<SmsContentList>(
-                "6", SmsContentList::query_str,
-                GetSmsContentList(contact, page > 0 ? page - 1 : 0));
+        auto client = JsonRpcClient{*_connector, _version};
+        _contents = client.CallMethodNamed<SmsContentList>(
+                "6", aux::query_str<SmsContentList>(),
+                aux::as_param(
+                    GetSmsContentList(contact, page > 0 ? page - 1 : 0)
+                ));
         _last_alive = steady_clock::now();
         //still_alive();
     }
@@ -175,9 +194,12 @@ const SmsContentList& Device::sms_contents(int contact, size_t page) {
 void Device::delete_sms(int contact, int sms) {
     if (is_alive()) try {
         std::lock_guard<std::mutex> lock(_mutex);
-        _client.CallMethodNamed<json>(
+        auto client = JsonRpcClient{*_connector, _version};
+        client.CallMethodNamed<aux::json>(
             "7", DeleteSms::query_str,
-            sms > 0 ? DeleteSms(contact, sms) : DeleteSms(contact));
+            aux::as_param( 
+                sms > 0 ? DeleteSms(contact, sms) : DeleteSms(contact) 
+            ));
         //still_alive();
     } catch (const jsonrpccxx::JsonRpcException &je) {
         if (je.Code() != jsonrpccxx::internal_error &&
@@ -189,24 +211,25 @@ void Device::delete_sms(int contact, int sms) {
 SendSmsResult Device::send_sms(vector<string> nums, string content) {
     if (is_alive()) {
         std::lock_guard<std::mutex> lock(_mutex);
-        _client.CallMethodNamed<json>(
-            "8", SendSms::query_str,
-            SendSms(std::move(nums), std::move(content)));
+        auto client = JsonRpcClient{*_connector, _version};
+        client.CallMethodNamed<aux::json>(
+            "8", aux::query_str<SendSms>(),
+            aux::as_param(SendSms(std::move(nums), std::move(content))));
 
         auto res =
-            _client.CallMethod<SendSmsResult>("9", SendSmsResult::query_str);
+            client.CallMethod<SendSmsResult>("9", aux::query_str<SendSmsResult>());
 
         if (res.send_status == SendSmsResult::SENDING) {
             while (res.send_status == SendSmsResult::SENDING) {
                 std::this_thread::sleep_for(1s);
-                res = _client.CallMethod<SendSmsResult>(
-                    "10", SendSmsResult::query_str);
+                res = client.CallMethod<SendSmsResult>(
+                    "10", aux::query_str<SendSmsResult>());
             }
         }
         //still_alive();
         return res;
     }
-    return SendSmsResult{SendSmsResult::FAILED};
+    return SendSmsResult{ SendSmsResult::FAILED };
 }
 
 } // namespace messages

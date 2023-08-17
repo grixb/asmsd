@@ -5,7 +5,6 @@
 #include "messages.hpp"
 
 #include "jsonrpccxx/client.hpp"
-#include "nlohmann/json.hpp"
 
 #include <memory>
 #include <chrono>
@@ -27,7 +26,6 @@ using staff::HttpClientConnector;
 using std::chrono::steady_clock;
 
 using time_point = steady_clock::time_point;
-using json       = nlohmann::json;
 
 template<typename T>
 using uni = std::unique_ptr<T>;
@@ -38,17 +36,17 @@ static constexpr auto WORKAROUND =
 class Device {
     uni<HttpClientConnector> _connector;
     
-    JsonRpcClient        _client;
-    seconds              _keepalive;
-    time_point           _last_alive;
-    uni<SystemInfo>      _sys_inf;
-    uni<SystemStatus>    _sys_status;
-    uni<ConnectionState> _con_state;
-    uni<SmsStorageState> _sms_state;
-    SmsContactList       _contacts;
-    SmsContentList       _contents;
-    std::mutex           _mutex;
-    bool                 _is_running;
+    version          _version;
+    seconds          _keepalive;
+    time_point       _last_alive;
+    SystemInfo       _sys_inf;
+    SystemStatus     _sys_status;
+    ConnectionState  _con_state;
+    SmsStorageState  _sms_state;
+    SmsContactList   _contacts;
+    SmsContentList   _contents;
+    std::mutex       _mutex;
+    bool             _is_running;
 
 
     bool ensure_alive();
