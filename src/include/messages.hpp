@@ -4,10 +4,10 @@
 #include <chrono>
 #include <cstdint>
 #include <ctime>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
-#include <memory>
 
 namespace messages {
 using namespace std::string_view_literals;
@@ -15,13 +15,14 @@ using namespace std::string_view_literals;
 using std::string;
 using std::string_view;
 using std::time_t;
-using std::chrono::seconds;
 using std::vector;
+using std::chrono::seconds;
 
 class SystemInfo {
-    class _Repr; std::unique_ptr<_Repr> _repr;
+    class _Repr;
+    std::unique_ptr<_Repr> _repr;
 
-public:
+   public:
     using mac_addr_t = std::uint8_t[6];
 
     friend struct aux;
@@ -32,7 +33,7 @@ public:
     const string_view& http_api_version() const& noexcept;
     const string_view& iccid() const& noexcept;
     const string_view& imei() const& noexcept;
-    const int&         imeisv() const& noexcept;
+    const string_view& imeisv() const& noexcept;
     const string_view& imsi() const& noexcept;
     const mac_addr_t&  mac_address() const& noexcept;
 
@@ -46,9 +47,10 @@ public:
 static constexpr auto UNKNOWN = "UNKNOWN"sv;
 
 class SystemStatus {
-    class _Repr; std::unique_ptr<_Repr> _repr;
+    class _Repr;
+    std::unique_ptr<_Repr> _repr;
 
-public:
+   public:
     static constexpr auto NO_SERVICE_SV    = "NO Service"sv;
     static constexpr auto GPRS_SV          = "GPRS [2G]"sv;
     static constexpr auto EDGE_SV          = "EDGE [2G]"sv;
@@ -125,9 +127,10 @@ public:
 };
 
 class SmsStorageState {
-    class _Repr; std::unique_ptr<_Repr> _repr;
+    class _Repr;
+    std::unique_ptr<_Repr> _repr;
 
-public:
+   public:
     friend struct aux;
 
     const int& unread_report() const& noexcept;
@@ -140,15 +143,16 @@ public:
     SmsStorageState(SmsStorageState&&) noexcept;
     SmsStorageState& operator=(SmsStorageState&&) noexcept;
 
-    virtual ~SmsStorageState();    
+    virtual ~SmsStorageState();
 };
 
 using ConnectionStatus = SystemStatus::ConnectionStatus;
 
 class ConnectionState {
-    class _Repr; std::unique_ptr<_Repr> _repr;
+    class _Repr;
+    std::unique_ptr<_Repr> _repr;
 
-public:
+   public:
     friend struct aux;
 
     const ConnectionStatus& connection_status() const& noexcept;
@@ -252,7 +256,7 @@ struct SmsContactList : Pagination<SmsContactList> {
 };
 
 struct SendSms {
-    using clock           = std::chrono::system_clock;
+    using clock = std::chrono::system_clock;
 
     int            sms_id;
     string         sms_content;
@@ -287,7 +291,6 @@ struct SendSmsResult {
         return as_strv(send_status);
     }
 };
-
 
 struct DeleteSms {
     static constexpr auto query_str = "DeleteSMS";

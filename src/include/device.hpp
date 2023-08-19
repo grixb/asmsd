@@ -1,68 +1,35 @@
 #ifndef DEVICE_H
 #define DEVICE_H
 
-#include "httpclientconnector.hpp"
+#include <chrono>
+#include <functional>
+#include <initializer_list>
+#include <memory>
+#include <thread>
+#include <utility>
+#include <vector>
+
 #include "messages.hpp"
 
-#include "jsonrpccxx/client.hpp"
-
-#include <memory>
-#include <chrono>
-#include <exception>
-#include <vector>
-#include <string_view>
-#include <mutex>
-#include <functional>
-#include <thread>
-
 namespace messages {
-using namespace std::chrono_literals;
-
-using jsonrpccxx::JsonRpcClient;
-using jsonrpccxx::version;
-using std::chrono::seconds;
 using std::vector;
-using staff::HttpClientConnector;
-using std::chrono::steady_clock;
-
-using time_point = steady_clock::time_point;
-
-template<typename T>
-using uni = std::unique_ptr<T>;
-
-static constexpr auto WORKAROUND =
-    R"(invalid error response: "code" (negative number) and "message" (string) are required)";
+using std::chrono::seconds;
 
 class Device {
-    uni<HttpClientConnector> _connector;
-    
-    version          _version;
-    seconds          _keepalive;
-    time_point       _last_alive;
-    SystemInfo       _sys_inf;
-    SystemStatus     _sys_status;
-    ConnectionState  _con_state;
-    SmsStorageState  _sms_state;
-    SmsContactList   _contacts;
-    SmsContentList   _contents;
-    std::mutex       _mutex;
-    bool             _is_running;
+    struct _Impl;
+    std::unique_ptr<_Impl> _impl;
 
-
-    bool ensure_alive();
-    bool is_alive();
-    // void still_alive();
-
-public:
-
+   public:
     using NotAlive = std::function<bool(Device&)>;
+    using HeadersInit =
+        std::initializer_list<std::pair<std::string, std::string>>;
 
-    Device(
-        string hostname, int port, string base_path,
-        seconds keepalive, seconds timeout, version ver
-    );
+    Device(string hostname, int port, string base_path, seconds keepalive,
+           seconds timeout, char ver);
 
     Device(Device&& other) noexcept;
+
+    virtual ~Device();
 
     const SystemInfo&      system_info();
     const SystemStatus&    system_status();
@@ -75,9 +42,9 @@ public:
     void                   run_keepalive(NotAlive not_alive);
     void                   stop_keepalive();
     void                   wait_alive();
-    void                   set_default_headers(staff::Headers hdrs);
+    void                   set_default_headers(HeadersInit hdrs);
     bool                   is_running();
 };
-} // namespace messages
+}  // namespace messages
 
 #endif

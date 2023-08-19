@@ -6,15 +6,15 @@
 namespace fmt {
 using namespace std::string_view_literals;
 
-using messages::SystemInfo;
-using messages::SystemStatus;
-using messages::SmsStorageState;
 using messages::ConnectionState;
-using messages::SmsContent;
-using messages::SmsContentList;
+using messages::Page;
 using messages::SmsContact;
 using messages::SmsContactList;
-using messages::Page;
+using messages::SmsContent;
+using messages::SmsContentList;
+using messages::SmsStorageState;
+using messages::SystemInfo;
+using messages::SystemStatus;
 
 using SmsContent::REPORT;
 
@@ -54,7 +54,7 @@ struct formatter<SystemInfo> : formatter<Presentation> {
                 ctx.out(),
                 "SYS: {} @ {:%Y.%m.%d}, MAC: {:X}:{:X}:{:X}:{:X}:{:X}:{:X}, "
                 "API: {}",
-                info.hw_version(), info.build_time(),          //
+                info.hw_version(), info.build_time(),            //
                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],  //
                 info.http_api_version());
 
@@ -70,11 +70,11 @@ struct formatter<SystemInfo> : formatter<Presentation> {
                 "\tIMEI:             {}\n"
                 "\tIMEI sv:          {}\n"
                 "\tIMSI:             {}\n",
-                info.device_name(), info.hw_version(),               //
+                info.device_name(), info.hw_version(),           //
                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],  //
-                info.build_time(),                           //
-                info.http_api_version(), info.iccid(), info.imei(), info.imeisv(),
-                info.imsi());
+                info.build_time(),                               //
+                info.http_api_version(), info.iccid(), info.imei(),
+                info.imeisv(), info.imsi());
 
         return ctx.out();
     }
@@ -82,8 +82,8 @@ struct formatter<SystemInfo> : formatter<Presentation> {
 
 template <>
 struct formatter<SystemStatus> : formatter<Presentation> {
-        auto format(const SystemStatus& status, format_context& ctx) const
-            -> format_context::iterator {
+    auto format(const SystemStatus& status, format_context& ctx) const
+        -> format_context::iterator {
         if (presentation == COMPACT)
             return format_to(
                 ctx.out(),
@@ -94,19 +94,19 @@ struct formatter<SystemStatus> : formatter<Presentation> {
 
         if (presentation == DETAILED)
             return format_to(ctx.out(),
-                                    "SYSTEM STATUS [{}]:\n"
-                                    "\tNetwork Name:     {}\n"
-                                    "\tNetwork Type:     {}\n"
-                                    "\tSignal Strength:  {}\n"
-                                    "\tSMS State:        {}\n"
-                                    "\tRoaming:          {}\n"
-                                    "\tConnection Error: {}\n"
-                                    "\tClear Code:       {}\n",
-                                    status.connection_status_sv(),
-                                    status.network_name(), status.network_type_sv(),
-                                    status.signal_strength(), status.sms_state_sv(),
-                                    status.roaming() ? ENABLED : DISABLED,
-                                    status.conprof_error(), status.clear_code());
+                             "SYSTEM STATUS [{}]:\n"
+                             "\tNetwork Name:     {}\n"
+                             "\tNetwork Type:     {}\n"
+                             "\tSignal Strength:  {}\n"
+                             "\tSMS State:        {}\n"
+                             "\tRoaming:          {}\n"
+                             "\tConnection Error: {}\n"
+                             "\tClear Code:       {}\n",
+                             status.connection_status_sv(),
+                             status.network_name(), status.network_type_sv(),
+                             status.signal_strength(), status.sms_state_sv(),
+                             status.roaming() ? ENABLED : DISABLED,
+                             status.conprof_error(), status.clear_code());
 
         return ctx.out();
     }
@@ -114,8 +114,8 @@ struct formatter<SystemStatus> : formatter<Presentation> {
 
 template <>
 struct formatter<SmsStorageState> : formatter<Presentation> {
-        auto format(const SmsStorageState& smss, format_context& ctx) const
-            -> format_context::iterator {
+    auto format(const SmsStorageState& smss, format_context& ctx) const
+        -> format_context::iterator {
         if (presentation == COMPACT)
             return format_to(
                 ctx.out(),
@@ -128,31 +128,33 @@ struct formatter<SmsStorageState> : formatter<Presentation> {
 
 template <>
 struct formatter<ConnectionState> : formatter<Presentation> {
-        auto format(const ConnectionState& cs, format_context& ctx) const
-            -> format_context::iterator {
+    auto format(const ConnectionState& cs, format_context& ctx) const
+        -> format_context::iterator {
         if (presentation == COMPACT)
             return format_to(
                 ctx.out(),
                 "{} {:%H:%M:%S} ago @ v4: {} v6: {}, traffic (UP/DOWN): {}/{}",
-                cs.connection_status_sv(), cs.connection_time(), cs.ipv4_address(),
-                cs.ipv6_address(), cs.ul_bytes(), cs.dl_bytes());
+                cs.connection_status_sv(), cs.connection_time(),
+                cs.ipv4_address(), cs.ipv6_address(), cs.ul_bytes(),
+                cs.dl_bytes());
 
         if (presentation == DETAILED)
             return format_to(ctx.out(),
-                                    "CONNECTION STATE [{}]:\n"
-                                    "\tConnection Time:  {:%H:%M:%S}\n"
-                                    "\tConnection Error: {}\n"
-                                    "\tClear Code:       {}\n"
-                                    "\tIPv4 address:     {}\n"
-                                    "\tIPv6 address:     {}\n"
-                                    "\tDownload Speed:   {}\n"
-                                    "\tUpload Speed:     {}\n"
-                                    "\tDownloaded Bytes: {}\n"
-                                    "\tUploaded Bytes:   {}\n",
-                                    cs.connection_status_sv(), cs.connection_time(),
-                                    cs.conprof_error(), cs.clear_code(),
-                                    cs.ipv4_address(), cs.ipv6_address(), cs.dl_speed(),
-                                    cs.ul_speed(), cs.dl_bytes(), cs.ul_bytes());
+                             "CONNECTION STATE [{}]:\n"
+                             "\tConnection Time:  {:%H:%M:%S}\n"
+                             "\tConnection Error: {}\n"
+                             "\tClear Code:       {}\n"
+                             "\tIPv4 address:     {}\n"
+                             "\tIPv6 address:     {}\n"
+                             "\tDownload Speed:   {}\n"
+                             "\tUpload Speed:     {}\n"
+                             "\tDownloaded Bytes: {}\n"
+                             "\tUploaded Bytes:   {}\n",
+                             cs.connection_status_sv(), cs.connection_time(),
+                             cs.conprof_error(), cs.clear_code(),
+                             cs.ipv4_address(), cs.ipv6_address(),
+                             cs.dl_speed(), cs.ul_speed(), cs.dl_bytes(),
+                             cs.ul_bytes());
 
         return ctx.out();
     }
@@ -160,15 +162,15 @@ struct formatter<ConnectionState> : formatter<Presentation> {
 
 template <>
 struct formatter<SmsContent> : formatter<Presentation> {
-        auto format(const SmsContent& cntc, format_context& ctx) const
-            -> format_context::iterator {
+    auto format(const SmsContent& cntc, format_context& ctx) const
+        -> format_context::iterator {
         if (presentation == COMPACT)
-            return format_to(
-                ctx.out(), "{} <{}> @ {:%Y.%m.%d. %H:%M}\n\t{}\n",
-                cntc.sms_type_sv(), cntc.sms_id, cntc.sms_time_ltm(),
-                cntc.sms_type == REPORT
-                    ? cntc.report_status ? "DELIVERED" : "FAILED"
-                    : cntc.sms_content);
+            return format_to(ctx.out(), "{} <{}> @ {:%Y.%m.%d. %H:%M}\n\t{}\n",
+                             cntc.sms_type_sv(), cntc.sms_id,
+                             cntc.sms_time_ltm(),
+                             cntc.sms_type == REPORT
+                                 ? cntc.report_status ? "DELIVERED" : "FAILED"
+                                 : cntc.sms_content);
 
         return ctx.out();
     }
@@ -201,9 +203,9 @@ struct formatter<SmsContact> : formatter<Presentation> {
         -> format_context::iterator {
         if (presentation == COMPACT)
             return fmt::format_to(ctx.out(), "<{}> {} [{}] {}", cntc.contact_id,
-                                    fmt::join(cntc.phone_numbers, ", "),
-                                    cntc.sms_count,
-                                    static_cast<const SmsContent&>(cntc));
+                                  fmt::join(cntc.phone_numbers, ", "),
+                                  cntc.sms_count,
+                                  static_cast<const SmsContent&>(cntc));
 
         return ctx.out();
     }
@@ -211,11 +213,11 @@ struct formatter<SmsContact> : formatter<Presentation> {
 
 template <>
 struct formatter<SmsContactList> : formatter<Presentation> {
-        auto format(const SmsContactList& clst, format_context& ctx) const
-            -> format_context::iterator {
+    auto format(const SmsContactList& clst, format_context& ctx) const
+        -> format_context::iterator {
         if (presentation == COMPACT) {
             auto out = fmt::format_to(ctx.out(), "SMS CONTACT LIST [{}/{}]:\n",
-                                        clst.page + 1, clst.total_pages);
+                                      clst.page + 1, clst.total_pages);
 
             for (const SmsContact& ctct : clst.contacts) {
                 out = fmt::format_to(out, " {}\n", ctct);
@@ -227,6 +229,6 @@ struct formatter<SmsContactList> : formatter<Presentation> {
         return ctx.out();
     }
 };
-}
+}  // namespace fmt
 
 #endif

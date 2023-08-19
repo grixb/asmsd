@@ -1,13 +1,13 @@
-#include "messages_aux.hpp"
+#include <sstream>
+
 #include "fmt/chrono.h"
 #include "fmt/core.h"
-
+#include "messages_aux.hpp"
 #include "nlohmann/json.hpp"
 
 namespace messages {
 
 class SystemInfo::_Repr {
-
     friend class SystemInfo;
     friend struct aux;
 
@@ -20,7 +20,7 @@ class SystemInfo::_Repr {
     string_view _imsi;
     std::tm     _build_time;
     mac_addr_t  _mac_addr;
-    int         _imeisv;
+    string_view _imeisv;
 
     void refresh() {
         _j_obj.at("DeviceName").get_to(_device_name);
@@ -30,19 +30,15 @@ class SystemInfo::_Repr {
         _j_obj.at("IMEI").get_to(_imei);
         _j_obj.at("IMEISV").get_to(_imeisv);
         _j_obj.at("IMSI").get_to(_imsi);
-        const auto& tmp = _j_obj.at("BuildTime")
-        .get_ref<const string&>();
-        std::istringstream{ tmp } >>
+        const auto& tmp = _j_obj.at("BuildTime").get_ref<const string&>();
+        std::istringstream{tmp} >>
             std::get_time(&_build_time, "%Y-%m-%d %H:%M:%S");
-        const auto& str = _j_obj.at("MacAddress")
-        .get_ref<const string&>();
+        const auto& str = _j_obj.at("MacAddress").get_ref<const string&>();
         for (size_t j{}; j < 6; ++j)
             _mac_addr[j] = std::stoul(str.substr(j * 3, 2), nullptr, 16);
-        
     }
 
-     _Repr(aux::json&& j) noexcept : _j_obj{ std::move(j) }
-    {}
+    _Repr(aux::json&& j) noexcept : _j_obj(std::move(j)) {}
 };
 
 const char* aux::query_str_(query_str_tag<SystemInfo>) noexcept {
@@ -54,14 +50,13 @@ SystemInfo& aux::emplace_json(SystemInfo& i, json&& j) {
         i._repr->_j_obj = std::move(j);
     else
         i._repr = std::unique_ptr<SystemInfo::_Repr>(
-            new SystemInfo::_Repr(std::move(j))
-        );
+            new SystemInfo::_Repr(std::move(j)));
     i._repr->refresh();
     return i;
 }
 
-SystemInfo::SystemInfo() = default;
-SystemInfo::SystemInfo(SystemInfo&&) noexcept = default;
+SystemInfo::SystemInfo()                                 = default;
+SystemInfo::SystemInfo(SystemInfo&&) noexcept            = default;
 SystemInfo& SystemInfo::operator=(SystemInfo&&) noexcept = default;
 
 SystemInfo::~SystemInfo() = default;
@@ -82,21 +77,15 @@ const string_view& SystemInfo::http_api_version() const& noexcept {
     return _repr->_http_api_version;
 }
 
-const string_view& SystemInfo::iccid() const& noexcept {
-    return _repr->_iccid;
-}
+const string_view& SystemInfo::iccid() const& noexcept { return _repr->_iccid; }
 
-const string_view& SystemInfo::imei() const& noexcept {
-    return _repr->_imei;
-}
+const string_view& SystemInfo::imei() const& noexcept { return _repr->_imei; }
 
-const int& SystemInfo::imeisv() const& noexcept {
+const string_view& SystemInfo::imeisv() const& noexcept {
     return _repr->_imeisv;
 }
 
-const string_view& SystemInfo::imsi() const& noexcept {
-    return _repr->_imsi;
-}
+const string_view& SystemInfo::imsi() const& noexcept { return _repr->_imsi; }
 
 const SystemInfo::mac_addr_t& SystemInfo::mac_address() const& noexcept {
     return _repr->_mac_addr;
@@ -160,11 +149,10 @@ const string_view& SystemStatus::as_strv(SmsState smss) noexcept {
 }
 
 class SystemStatus::_Repr {
-
-    friend class  SystemStatus;
+    friend class SystemStatus;
     friend struct aux;
 
-    aux::json             _j_obj;
+    aux::json        _j_obj;
     string_view      _network_name;
     int              _signal_strength;
     int              _conprof_error;
@@ -185,11 +173,14 @@ class SystemStatus::_Repr {
         _j_obj.at("NetworkType").get_to(_network_type);
         _j_obj.at("ConnectionStatus").get_to(_connection_status);
         _j_obj.at("SmsState").get_to(_sms_state);
-        _j_obj.at("Roaming").get_to(_roaming);
-        _j_obj.at("Domestic_Roaming").get_to(_domestic_roaming);
+        int tmp;
+        _j_obj.at("Roaming").get_to(tmp);
+        _roaming = tmp > 0;
+        _j_obj.at("Domestic_Roaming").get_to(tmp);
+        _domestic_roaming = tmp > 0;
     }
 
-    _Repr(aux::json&& j) noexcept : _j_obj{ std::move(j) } {}
+    _Repr(aux::json&& j) noexcept : _j_obj(std::move(j)) {}
 };
 
 const char* aux::query_str_(query_str_tag<SystemStatus>) noexcept {
@@ -197,20 +188,19 @@ const char* aux::query_str_(query_str_tag<SystemStatus>) noexcept {
 }
 
 SystemStatus& aux::emplace_json(SystemStatus& s, json&& j) {
-    if(s._repr)
+    if (s._repr)
         s._repr->_j_obj = std::move(j);
     else
         s._repr = std::unique_ptr<SystemStatus::_Repr>(
-            new SystemStatus::_Repr(std::move(j))
-        );
+            new SystemStatus::_Repr(std::move(j)));
     s._repr->refresh();
     return s;
 }
 
-SystemStatus::SystemStatus() = default;
-SystemStatus::SystemStatus(SystemStatus&&) noexcept = default;
+SystemStatus::SystemStatus()                                   = default;
+SystemStatus::SystemStatus(SystemStatus&&) noexcept            = default;
 SystemStatus& SystemStatus::operator=(SystemStatus&&) noexcept = default;
-SystemStatus::~SystemStatus() = default;
+SystemStatus::~SystemStatus()                                  = default;
 
 const string_view& SystemStatus::network_name() const& noexcept {
     return _repr->_network_name;
@@ -236,8 +226,8 @@ const SystemStatus::NetworkType& SystemStatus::network_type() const& noexcept {
     return _repr->_network_type;
 }
 
-const SystemStatus::ConnectionStatus& 
-SystemStatus::connection_status() const& noexcept {
+const SystemStatus::ConnectionStatus& SystemStatus::connection_status()
+    const& noexcept {
     return _repr->_connection_status;
 }
 
@@ -245,16 +235,13 @@ const SystemStatus::SmsState& SystemStatus::sms_state() const& noexcept {
     return _repr->_sms_state;
 }
 
-const bool& SystemStatus::roaming() const& noexcept {
-    return _repr->_roaming;
-}
+const bool& SystemStatus::roaming() const& noexcept { return _repr->_roaming; }
 
 const bool& SystemStatus::domestic_roaming() const& noexcept {
     return _repr->_domestic_roaming;
 }
 
 class SmsStorageState::_Repr {
-
     friend class SmsStorageState;
     friend struct aux;
 
@@ -270,8 +257,7 @@ const char* aux::query_str_(query_str_tag<SmsStorageState>) noexcept {
 }
 
 SmsStorageState& aux::from_json(const json& j, SmsStorageState& ss) {
-    if (!ss._repr) 
-        ss._repr = std::make_unique<SmsStorageState::_Repr>();
+    if (!ss._repr) ss._repr = std::make_unique<SmsStorageState::_Repr>();
     j.at("UnreadReport").get_to(ss._repr->unread_count);
     j.at("LeftCount").get_to(ss._repr->left_count);
     j.at("MaxCount").get_to(ss._repr->max_count);
@@ -280,9 +266,10 @@ SmsStorageState& aux::from_json(const json& j, SmsStorageState& ss) {
     return ss;
 }
 
-SmsStorageState::SmsStorageState() = default;
+SmsStorageState::SmsStorageState()                           = default;
 SmsStorageState::SmsStorageState(SmsStorageState&&) noexcept = default;
-SmsStorageState& SmsStorageState::operator=(SmsStorageState&&) noexcept = default;
+SmsStorageState& SmsStorageState::operator=(SmsStorageState&&) noexcept =
+    default;
 
 SmsStorageState::~SmsStorageState() = default;
 
@@ -303,11 +290,10 @@ const int& SmsStorageState::unread_count() const& noexcept {
 }
 
 class ConnectionState::_Repr {
-
     friend class ConnectionState;
     friend struct aux;
 
-    aux::json             _j_obj;
+    aux::json        _j_obj;
     ConnectionStatus connection_status;
     int              conprof_error;
     int              clear_code;
@@ -322,7 +308,7 @@ class ConnectionState::_Repr {
     size_t           ul_bytes;
     seconds          connection_time;
 
-    _Repr(aux::json&& j) noexcept : _j_obj{ std::move(j) } {}
+    _Repr(aux::json&& j) noexcept : _j_obj(std::move(j)) {}
 
     void refresh() {
         _j_obj.at("ConnectionStatus").get_to(connection_status);
@@ -348,19 +334,19 @@ const char* aux::query_str_(query_str_tag<ConnectionState>) noexcept {
 }
 
 ConnectionState& aux::emplace_json(ConnectionState& s, json&& j) {
-    if(s._repr)
+    if (s._repr)
         s._repr->_j_obj = std::move(j);
     else
         s._repr = std::unique_ptr<ConnectionState::_Repr>(
-            new ConnectionState::_Repr(std::move(j))
-        );
+            new ConnectionState::_Repr(std::move(j)));
     s._repr->refresh();
     return s;
 }
 
-ConnectionState::ConnectionState() = default;
+ConnectionState::ConnectionState()                           = default;
 ConnectionState::ConnectionState(ConnectionState&&) noexcept = default;
-ConnectionState& ConnectionState::operator=(ConnectionState&&) noexcept = default;
+ConnectionState& ConnectionState::operator=(ConnectionState&&) noexcept =
+    default;
 
 ConnectionState::~ConnectionState() = default;
 
@@ -425,12 +411,10 @@ const seconds& ConnectionState::connection_time() const& noexcept {
     return _repr->connection_time;
 }
 
-aux::named_parameter aux::as_param(const Page& p) {
-    return { { "Page", p.page } };
-}
+aux::named_parameter aux::as_param(const Page& p) { return {{"Page", p.page}}; }
 
 aux::named_parameter aux::as_param(const GetSmsContentList& g) {
-    return { {"Page", g.page}, {"ContactId", g.contact_id} };
+    return {{"Page", g.page}, {"ContactId", g.contact_id}};
 }
 
 void from_json(const aux::json& j, SmsContent& smsc) {
@@ -513,16 +497,16 @@ void from_json(const aux::json& j, SendSmsResult& res) {
 
 aux::named_parameter aux::as_param(SendSms&& sms) {
     return {{"SMSId", sms.sms_id},
-                {"SMSContent", std::move(sms.sms_content)},
-                {"PhoneNumber", std::move(sms.phone_numbers)},
-                {"SMSTime", fmt::format("{:%Y-%m-%d %H:%M:%S}",
-                                        *std::localtime(&sms.sms_time))}};
+            {"SMSContent", std::move(sms.sms_content)},
+            {"PhoneNumber", std::move(sms.phone_numbers)},
+            {"SMSTime", fmt::format("{:%Y-%m-%d %H:%M:%S}",
+                                    *std::localtime(&sms.sms_time))}};
 }
 
 SendSms::SendSms(vector<string> nums, string content)
     : sms_id{-1},
-        sms_content{std::move(content)},
-        phone_numbers{std::move(nums)} {
+      sms_content{std::move(content)},
+      phone_numbers{std::move(nums)} {
     sms_time = clock::to_time_t(clock::now());
 }
 
@@ -536,16 +520,16 @@ const char* aux::query_str_(query_str_tag<SendSmsResult>) noexcept {
 
 aux::named_parameter aux::as_param(const DeleteSms& ds) {
     switch (ds.del_flag) {
-            case DeleteSms::CONTENT:
-                return {{"DelFlag", ds.del_flag},
-                        {"ContactId", ds.contact_id},
-                        {"SMSId", ds.sms_id}};
-            default:
-                return {
-                    {"DelFlag", ds.del_flag},
+        case DeleteSms::CONTENT:
+            return {{"DelFlag", ds.del_flag},
                     {"ContactId", ds.contact_id},
-                };
-        }
+                    {"SMSId", ds.sms_id}};
+        default:
+            return {
+                {"DelFlag", ds.del_flag},
+                {"ContactId", ds.contact_id},
+            };
+    }
 }
 
-} // namespace messages
+}  // namespace messages

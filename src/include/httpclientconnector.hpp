@@ -5,9 +5,9 @@
 #define CPPHTTPLIB_ALLOW_LF_AS_LINE_TERMINATOR
 #endif
 
-#include <string>
 #include <chrono>
 #include <stdexcept>
+#include <string>
 
 #include "fmt/core.h"
 #include "httplib.h"
@@ -29,12 +29,14 @@ class HttpClientConnector : public IClientConnector {
     Headers         _hdrs;
 
    public:
-    explicit HttpClientConnector(
-        string hostname, int port, string base_path);
+    using HeadersInit =
+        std::initializer_list<std::pair<std::string, std::string>>;
+
+    explicit HttpClientConnector(string hostname, int port, string base_path);
 
     string Send(const string& message) override;
 
-    void set_default_headers(Headers headers);
+    void set_default_headers(HeadersInit headers);
 
     void timeout(const seconds& timeout);
 

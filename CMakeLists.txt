@@ -61,6 +61,7 @@ target_sources(${PROJECT_NAME}
     src/messages.cpp
     src/device.cpp
     src/httpclientconnector.cpp
+    src/args.cpp
 )
 target_link_libraries(${PROJECT_NAME}
     PRIVATE 
@@ -71,3 +72,7 @@ target_link_libraries(${PROJECT_NAME}
 target_compile_options(${PROJECT_NAME}
 PRIVATE -Wall -Wextra -Wpedantic -Werror
 )
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    set( CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -stdlib=libc++")
+endif()
