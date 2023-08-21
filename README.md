@@ -15,7 +15,7 @@ sudo apt install git build-essential ninja-build cmake libfmt-dev
 
 To clone, configure, generate then build, run:
 ```cmd
-git clone https://github.com/grxb/asmsd
+git clone https://github.com/grixb/asmsd
 cd asmsd ; mkdir build
 cmake -B build
 cmake --build build
