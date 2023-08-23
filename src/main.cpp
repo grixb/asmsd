@@ -139,8 +139,10 @@ int main(int argc, const char* argv[]) {
                 std::exit(EX_USAGE);
             }
 
-            const auto res =
-                device.send_sms(args.move_send_sms(), args.move_content());
+            const auto res = device.send_sms(
+                std::move(args).send_sms(), 
+                std::move(args).content()
+            );
 
             spdlog::debug("SMS send status: {}", res.send_status_sv());
 
@@ -306,7 +308,10 @@ void process_file(Device& client, const fs::path& file,
     spdlog::debug("sending SMS to: {}", phone_number);
 
     try {
-        client.send_sms({std::move(phone_number)}, content.str());
+        client.send_sms(
+            { std::move(phone_number) }, 
+            std::move(content).str()
+        );
     } catch (const std::exception& e) {
         spdlog::error("unable to send sms: {}", e.what());
         return;
@@ -329,16 +334,16 @@ messages::Device DefaultDevice(aux::Args& args) {
                    args.keep_alive(), args.time_out());
         std::exit(EX_USAGE);
     }
-    messages::Device http_client{args.host(),           args.port(),
-                                 args.move_base_path(), args.keep_alive(),
-                                 args.time_out(),       2};
+    messages::Device http_client{args.host(),                 args.port(),
+                                 std::move(args).base_path(), args.keep_alive(),
+                                 args.time_out(),             2};
 
     http_client.set_default_headers({
         {"Content-Type", "application/json"},
-        {"_TclRequestVerificationKey", args.move_verify_token()},
+        {"_TclRequestVerificationKey", std::move(args).verify_token()},
         {"_TclRequestVerificationToken", "null"},
         {"Referer", fmt::format("http://{}/index.html", args.host())},
-        {"Origin", args.move_host()},
+        {"Origin", std::move(args).host()},
     });
     return http_client;
 }

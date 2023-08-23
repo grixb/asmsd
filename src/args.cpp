@@ -117,23 +117,23 @@ void Args::parse(int argc, const char* argv[]) {
     _repr->reprocess  = minutes{reprocess};
 }
 
-Args::vector<Args::string>&& Args::move_send_sms() & noexcept {
+Args::vector<Args::string>&& Args::send_sms() && noexcept {
     return std::move(_repr->send_sms);
 }
 
-Args::string&& Args::move_content() & noexcept {
+Args::string&& Args::content() && noexcept {
     return std::move(_repr->content);
 }
 
-Args::string&& Args::move_base_path() & noexcept {
+Args::string&& Args::base_path() && noexcept {
     return std::move(_repr->base_path);
 }
 
-Args::string&& Args::move_verify_token() & noexcept {
+Args::string&& Args::verify_token() && noexcept {
     return std::move(_repr->verify_token);
 }
 
-Args::string&& Args::move_host() & noexcept { return std::move(_repr->host); }
+Args::string&& Args::host() && noexcept { return std::move(_repr->host); }
 
 const Args::level_enum& Args::log_level() const& noexcept {
     return _repr->log_level;
